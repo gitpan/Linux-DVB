@@ -14,11 +14,11 @@ enum {
   SCT_CAT  = 0x01,
   SCT_PMT  = 0x02,
   SCT_TSDT = 0x03,
-  SCT_NIT  = 0x40,
+  SCT_NIT  = 0x40,//TODO
   SCT_NIT_OTHER  = 0x41,
   SCT_SDT  = 0x42,
   SCT_SDT_OTHER = 0x46,
-  SCT_BAT  = 0x4a,
+  SCT_BAT  = 0x4a,//TODO
   SCT_EIT_PRESENT          = 0x4e,
   SCT_EIT_PRESENT_OTHER    = 0x4f,
   SCT_EIT_SCHEDULE0        = 0x50,
@@ -39,8 +39,11 @@ enum {
 };
 
 enum {
+  DT_service                = 0x48,
+  DT_country_availability   = 0x49,
+  DT_linkage                = 0x4a,
   DT_short_event            = 0x4d,
-  DT_extended_event         = 0x4e,
+  DT_extended_event         = 0x4e, //NYI
   DT_component              = 0x50,
   DT_content                = 0x54,
   DT_private_data_specifier = 0x5f,
@@ -222,10 +225,23 @@ static const struct consts {
   CONST (SCT_MPE),
   CONST (SCT_DIT),
   CONST (SCT_SIT),
+
+  CONST (DT_service),
+  CONST (DT_country_availability),
+  CONST (DT_linkage),
+  CONST (DT_short_event),
+  CONST (DT_extended_event),
+  CONST (DT_component),
+  CONST (DT_content),
+  CONST (DT_private_data_specifier),
+  CONST (DT_short_smoothing_buffer),
+  CONST (DT_scrambling_indicator),
+  CONST (DT_PDC),
 };
 
 #define HVS_S(hv,struct,member) hv_store (hv, #member, sizeof (#member) - 1, newSVpv (struct.member, 0), 0)
 #define HVS_I(hv,struct,member) hv_store (hv, #member, sizeof (#member) - 1, newSViv (struct.member), 0)
+#define HVS(hv,name,sv) hv_store (hv, #name, sizeof (#name) - 1, (sv), 0)
 
 static void
 set_parameters (HV *hv, struct dvb_frontend_parameters *p, fe_type_t type)
@@ -311,8 +327,23 @@ decode_field (int bits)
   return dec_field = r;
 }
 
-#define DEC_I(hv, bits, name) hv_store (hv, #name, sizeof (#name) - 1, newSViv (decode_field (bits)), 0)
-#define DEC_S(hv, bytes, name) hv_store (hv, #name, sizeof (#name) - 1, newSVpvn (dec_data + (dec_ofs >> 3), (bytes)), 0), dec_ofs += (bytes) << 3
+static SV *
+text2sv (u8 *data, U32 len)
+{
+  dSP;
+  SV *sv = newSVpvn (data, len);
+
+  PUSHMARK (SP);
+  XPUSHs (sv);
+  PUTBACK;
+  call_pv ("Linux::DVB::Decode::text", G_VOID);
+
+  return sv;
+}
+
+#define DEC_I(hv, bits, name)  HVS (hv, name, newSViv (decode_field (bits)))
+#define DEC_T(hv, bytes, name) HVS (hv, name, text2sv (dec_data + (dec_ofs >> 3), (bytes))), dec_ofs += (bytes) << 3
+#define DEC_S(hv, bytes, name) HVS (hv, name, newSVpvn (dec_data + (dec_ofs >> 3), (bytes))), dec_ofs += (bytes) << 3
 
 static AV *
 decode_descriptors (long end)
@@ -322,15 +353,15 @@ decode_descriptors (long end)
   while (dec_ofs < end)
     {
       HV *hv = newHV ();
-      U8 type, len, a;
-      long end;
+      U8 type, len, len2;
+      AV *av2;
+      long end, end2;
 
       av_push (av, newRV_noinc ((SV *)hv));
       
       DEC_I (hv, 8, type);
       type = dec_field;
       len = decode_field (8);
-
       end = dec_ofs + (len << 3);
       
       if (end > dec_len8)
@@ -338,6 +369,45 @@ decode_descriptors (long end)
 
       switch (type)
         {
+          case DT_service:
+            DEC_I (hv,  8, service_type);
+            len2 = decode_field (8); DEC_T (hv, len2, service_provider_name);
+            len2 = decode_field (8); DEC_T (hv, len2, service_name);
+            break;
+
+          case DT_country_availability:
+            DEC_I (hv, 1, country_availability_flag);
+            decode_field (7);
+
+            DEC_S (hv, (end - dec_ofs) >> 3, private_data);
+            //while (dec_ofs + 24 <= end)
+            //  av_push (av, 
+            break;
+
+          case DT_linkage:
+            DEC_I (hv, 16, transport_stream_id);
+            DEC_I (hv, 16, original_network_id);
+            DEC_I (hv, 16, service_id);
+            DEC_I (hv,  8, linkage_type);
+
+            if (dec_field == 8)
+              {
+                U32 hot, org;
+
+                DEC_I (hv, 8, hand_over_type); hot = dec_field;
+                decode_field (3);
+                DEC_I (hv, 1, origin_type); org = dec_field;
+
+                if (hot > 0x00 && hot < 0x04)
+                  DEC_I (hv, 16, network_id);
+
+                if (org == 0)
+                  DEC_I (hv, 16, initial_service_id);
+              }
+
+            DEC_S (hv, (end - dec_ofs) >> 3, private_data);
+            break;
+
           case DT_PDC:
             decode_field (4);
             DEC_I (hv, 20, programme_identification_label);
@@ -349,13 +419,34 @@ decode_descriptors (long end)
             DEC_I (hv, 8, component_type);
             DEC_I (hv, 8, component_tag);
             DEC_S (hv, 3, ISO_639_language_code);
-            DEC_S (hv, (end - dec_ofs) >> 3, text);
+            DEC_T (hv, (end - dec_ofs) >> 3, text);
             break;
 
           case DT_short_event:
             DEC_S (hv, 3, ISO_639_language_code);
-            a = decode_field (8); DEC_S (hv, a, event_name);
-            a = decode_field (8); DEC_S (hv, a, text);
+            len2 = decode_field (8); DEC_T (hv, len2, event_name);
+            len2 = decode_field (8); DEC_T (hv, len2, text);
+            break;
+
+          case DT_extended_event:
+            DEC_I (hv, 4, descriptor_number);
+            DEC_I (hv, 4, last_descriptor_number);
+            DEC_S (hv, 3, ISO_639_language_code);
+
+            len2 = decode_field (8); end2 = dec_ofs + (len2 << 3);
+            av2 = newAV ();
+            HVS (hv, items, newRV_noinc ((SV *)av2));
+
+            while (dec_ofs < end2)
+              {
+                AV *av3 = newAV ();
+                len2 = decode_field (8); av_push (av3, text2sv (dec_data + (dec_ofs >> 3), len2)), dec_ofs += len << 3;
+                len2 = decode_field (8); av_push (av3, text2sv (dec_data + (dec_ofs >> 3), len2)), dec_ofs += len << 3;
+
+                av_push (av2, newRV_noinc ((SV *)av3));
+              }
+
+            len2 = decode_field (8); DEC_T (hv, len2, text);
             break;
 
           case DT_content:
@@ -365,16 +456,19 @@ decode_descriptors (long end)
           case DT_private_data_specifier:
             DEC_I (hv, 32, private_data_specifier);
             break;
-
+           
           default:
             fprintf (stderr, "UNKXXX %x\n", type);//D
           case 0:
-          case DT_extended_event:
           case 0x80:
           case 0x81:
           case 0x82:
+          case 0x83:
           case 0x84:
           case 0x85:
+          case 0x8d:
+          case 0x8e:
+          case 0xb2:
             DEC_S (hv, len, raw_data);
             break;
         }
@@ -639,7 +733,7 @@ si (SV *stream)
               DEC_I (hv,  8, last_table_id);
 
               AV *events = newAV ();
-              hv_store (hv, "events", 6, newRV_noinc ((SV *)events), 0);
+              HVS (hv, events, newRV_noinc ((SV *)events));
 
               while (end - dec_ofs > 32)
                 {
@@ -658,24 +752,33 @@ si (SV *stream)
                   dll = dec_ofs + (decode_field (12) << 3);
 
                   desc = decode_descriptors (dll);
-                  hv_store (ev, "descriptors", 11, newRV_noinc ((SV *)desc), 0);
+                  HVS (ev, descriptors, newRV_noinc ((SV *)desc));
                 }
 
               decode_field (32); // skip CRC
 
               break;
-#if 0 // service desc table
+
             case SCT_SDT:
             case SCT_SDT_OTHER:
+              DEC_I (hv, 16, transport_stream_id);
+              decode_field (2);
+              DEC_I (hv,  5, version_number);
+              DEC_I (hv,  1, current_next_indicator);
+              DEC_I (hv,  8, section_number);
+              DEC_I (hv,  8, last_section_number);
+              DEC_I (hv, 16, original_network_id);
+              decode_field (8);
 
-              AV *events = newAV ();
-              hv_store (hv, "events", 0, newRV_noinc (events), 0);
+              AV *services = newAV ();
+              HVS (hv, services, newRV_noinc ((SV *)services));
 
               while (end - dec_ofs > 32)
                 {
                   HV *ev = newHV ();
                   U32 dll;
-                  av_push (events, newRV_noinc (ev));
+                  AV *desc;
+                  av_push (services, newRV_noinc ((SV *)ev));
 
                   DEC_I (ev, 16, service_id);
                   decode_field (6);
@@ -684,15 +787,15 @@ si (SV *stream)
                   DEC_I (ev, 3, running_status);
                   DEC_I (ev, 1, free_CA_mode);
 
-                  dll = decode_field (12);
+                  dll = dec_ofs + (decode_field (12) << 3);
                   
-                  DEC_I (ev, 1, free_CA_mode);
+                  desc = decode_descriptors (dll);
+                  HVS (ev, descriptors, newRV_noinc ((SV *)desc));
                 }
 
               decode_field (32); // skip CRC
-              //DEC_S (hv, length + 3 - (dec_ofs >> 3), raw_data);
               break;
-#endif
+
             default:
               DEC_S (hv, length, raw_data);
               break;

@@ -32,7 +32,7 @@ package Linux::DVB;
 use Fcntl ();
 
 BEGIN {
-   $VERSION = '0.1';
+   $VERSION = '0.02';
    @ISA = qw(Exporter);
 
    require XSLoader;
@@ -154,12 +154,30 @@ sub sct_filter { _filter     ($_[0]{fd}, @_[1, 2, 3, 4, 5]) }
 sub pes_filter { _pes_filter ($_[0]{fd}, @_[1, 2, 3, 4, 5]) }
 sub buffer     { _buffer     ($_[0]{fd}, $_[1]) }
 
+package Linux::DVB::Decode;
+
+use Encode;
+
+sub text($) {
+   for ($_[0]) {
+      s/^([\x01-\x0b])// and $_ = decode sprintf ("iso-8859-%d", 4 + ord $1), $_;
+      # 10 - pardon you???
+      s/^\x11// and $_ = decode "utf16-be", $_;
+      # 12 ksc5601, DB
+      # 13 db2312, DB
+      # 14 big5(?), DB
+      s/\x8a/\n/g;
+      #s/([\x00-\x09\x0b-\x1f\x80-\x9f])/sprintf "{%02x}", ord $1/ge;
+      s/([\x00-\x09\x0b-\x1f\x80-\x9f])//ge;
+   }
+}
+
 1;
 
 =head1 AUTHOR
 
- Marc Lehmann <pcg@goof.com>
- http://www.goof.com/pcg/marc/
+ Marc Lehmann <schmorp@schmorp.de>
+ http://home.schmorp.de/
 
 =cut
 

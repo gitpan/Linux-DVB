@@ -1,5 +1,8 @@
 Revision history for Perl extension Linux::DVB
 
+0.02  Thu Mar  3 18:00:52 CET 2005
+	- change of contact address.
+
 0.01  Mon Sep  6 08:24:43 CEST 2004
 	- original version; created by copying Convert-Scalar.
 
