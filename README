@@ -1,0 +1,65 @@
+NAME
+    Linux::DVB - interface to (some parts of) the Linux DVB API
+
+SYNOPSIS
+     use Linux::DVB;
+
+DESCRIPTION
+    This module provides an interface to the Linux DVB API. It is a
+    straightforward translation of the C API. You should read the Linux DVB
+    API description to make any sense of this module. It can be found here:
+
+       http://www.linuxtv.org/developer/dvbapi.xml
+
+    All constants from frontend.h and demux.h are exported by their C name
+    and by default.
+
+    Noteworthy differences to the C API: unions and sub-structs are usually
+    translated into flat perl hashes, i.e "struct.u.qam.symbol_rate" becomes
+    "$struct->{symbol_rate}".
+
+    Noteworthy limitations of this module include: no way to set the
+    frequency or diseqc. No interface to the video, audio and net devices.
+    If you need this functionality bug the author.
+
+Linux::DVB::Frontend CLASS
+  SYNOPSIS
+     my $fe = new Linux::DVB::Frontend $path, $writable;
+
+     my $fe = new Linux::DVB::Frontend
+                 "/dev/dvb/adapter0/frontend0", 1;
+
+     $fe->fh; # filehandle
+     $fe->fd; # fileno
+     $fe->blocking (0); # or 1
+
+     $fe->{name}
+     $fe->{type}
+     $fe->frontend_info->{name}
+
+     $fe->status & FE_HAS_LOCK
+     print $fe->ber, $fe->snr, $fe->signal_strength, $fe->uncorrected;
+
+     my $tune = $fe->parameters;
+     $tune->{frequency};
+     $tune->{symbol_rate};
+
+Linux::DVB::Demux CLASS
+  SYNOPSIS
+     my $dmx = new Linux::DVB::Demux
+                 "/dev/dvb/adapter0/demux0";
+
+     $fe->fh; # filehandle
+     $fe->fd; # fileno
+     $fe->blocking (1); # non-blocking is default
+
+     $dmx->buffer (16384);
+     $dmx->sct_filter ($pid, "filter", "mask", $timeout=0, $flags=DMX_CHECK_CRC);
+     $dmx->pes_filter ($pid, $input, $output, $type, $flags=0);
+     $dmx->start; 
+     $dmx->stop; 
+
+AUTHOR
+     Marc Lehmann <pcg@goof.com>
+     http://www.goof.com/pcg/marc/
+
