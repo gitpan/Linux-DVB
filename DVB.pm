@@ -32,7 +32,7 @@ package Linux::DVB;
 use Fcntl ();
 
 BEGIN {
-   $VERSION = '0.02';
+   $VERSION = '0.2';
    @ISA = qw(Exporter);
 
    require XSLoader;

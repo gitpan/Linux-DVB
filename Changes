@@ -1,5 +1,8 @@
 Revision history for Perl extension Linux::DVB
 
+0.2   Thu Mar  3 21:10:52 CET 2005
+	- fix version mismatch.
+
 0.02  Thu Mar  3 18:00:52 CET 2005
 	- change of contact address.
 
