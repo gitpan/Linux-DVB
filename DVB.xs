@@ -10,46 +10,51 @@
 #define CONST(name) { #name, name }
 
 enum {
-  SCT_PAT  = 0x00,
-  SCT_CAT  = 0x01,
-  SCT_PMT  = 0x02,
-  SCT_TSDT = 0x03,
-  SCT_NIT  = 0x40,//TODO
-  SCT_NIT_OTHER  = 0x41,
-  SCT_SDT  = 0x42,
-  SCT_SDT_OTHER = 0x46,
-  SCT_BAT  = 0x4a,//TODO
+  SCT_PAT                  = 0x00,
+  SCT_CAT                  = 0x01,
+  SCT_PMT                  = 0x02,
+  SCT_TSDT                 = 0x03,
+  SCT_NIT                  = 0x40,//TODO
+  SCT_NIT_OTHER            = 0x41,
+  SCT_SDT                  = 0x42,
+  SCT_SDT_OTHER            = 0x46,
+  SCT_BAT                  = 0x4a,//TODO
   SCT_EIT_PRESENT          = 0x4e,
   SCT_EIT_PRESENT_OTHER    = 0x4f,
   SCT_EIT_SCHEDULE0        = 0x50,
   SCT_EIT_SCHEDULE15       = 0x5f,
   SCT_EIT_SCHEDULE_OTHER0  = 0x60,
   SCT_EIT_SCHEDULE_OTHER15 = 0x6f,
-  SCT_TDT  = 0x70,
-  SCT_RST  = 0x71,
-  SCT_ST   = 0x72,
-  SCT_TOT  = 0x73,
-  SCT_RNT  = 0x74,
-  SCT_CST  = 0x75,
-  SCT_RCT  = 0x76,
-  SCT_CIT  = 0x77,
-  SCT_MPE  = 0x78,
-  SCT_DIT  = 0x7e,
-  SCT_SIT  = 0x7f,
+  SCT_TDT                  = 0x70,
+  SCT_RST                  = 0x71,
+  SCT_ST                   = 0x72,
+  SCT_TOT                  = 0x73,
+  SCT_RNT                  = 0x74,
+  SCT_CST                  = 0x75,
+  SCT_RCT                  = 0x76,
+  SCT_CIT                  = 0x77,
+  SCT_MPE                  = 0x78,
+  SCT_DIT                  = 0x7e,
+  SCT_SIT                  = 0x7f,
 };
 
 enum {
-  DT_service                = 0x48,
-  DT_country_availability   = 0x49,
-  DT_linkage                = 0x4a,
-  DT_short_event            = 0x4d,
-  DT_extended_event         = 0x4e, //NYI
-  DT_component              = 0x50,
-  DT_content                = 0x54,
-  DT_private_data_specifier = 0x5f,
-  DT_short_smoothing_buffer = 0x61, //NYI
-  DT_scrambling_indicator   = 0x65, //NYI
-  DT_PDC                    = 0x69,
+  DT_network_name                = 0x40,
+  DT_service_list                = 0x41,
+  DT_satellite_delivery_system   = 0x43,
+  DT_cable_delivery_system       = 0x44,
+  DT_service                     = 0x48,
+  DT_country_availability        = 0x49,
+  DT_linkage                     = 0x4a,
+  DT_short_event                 = 0x4d,
+  DT_extended_event              = 0x4e, //NYI
+  DT_component                   = 0x50,
+  DT_content                     = 0x54,
+  DT_terrestrial_delivery_system = 0x5A,
+  DT_private_data_specifier      = 0x5f,
+  DT_short_smoothing_buffer      = 0x61, //NYI
+  DT_scrambling_indicator        = 0x65, //NYI
+  DT_PDC                         = 0x69,
 };
 
 static const struct consts {
@@ -226,6 +231,10 @@ static const struct consts {
   CONST (SCT_DIT),
   CONST (SCT_SIT),
 
+  CONST (DT_network_name),
+  CONST (DT_service_list),
+  CONST (DT_satellite_delivery_system),
+  CONST (DT_cable_delivery_system),
   CONST (DT_service),
   CONST (DT_country_availability),
   CONST (DT_linkage),
@@ -233,6 +242,7 @@ static const struct consts {
   CONST (DT_extended_event),
   CONST (DT_component),
   CONST (DT_content),
+  CONST (DT_terrestrial_delivery_system),
   CONST (DT_private_data_specifier),
   CONST (DT_short_smoothing_buffer),
   CONST (DT_scrambling_indicator),
@@ -244,7 +254,7 @@ static const struct consts {
 #define HVS(hv,name,sv) hv_store (hv, #name, sizeof (#name) - 1, (sv), 0)
 
 static void
-set_parameters (HV *hv, struct dvb_frontend_parameters *p, fe_type_t type)
+get_parameters (HV *hv, struct dvb_frontend_parameters *p, fe_type_t type)
 {
   HVS_I (hv, (*p), frequency);
   HVS_I (hv, (*p), inversion);
@@ -268,6 +278,43 @@ set_parameters (HV *hv, struct dvb_frontend_parameters *p, fe_type_t type)
         HVS_I (hv, (*p).u.ofdm, code_rate_LP);
         HVS_I (hv, (*p).u.ofdm, constellation);
         HVS_I (hv, (*p).u.ofdm, transmission_mode);
+        break;
+    }
+}
+
+#define HVF_I(hv,struct,member)                                 \
+  if (v = hv_fetch (hv, #member, sizeof (#member) - 1, 0))	\
+    struct.member = SvIV (*v);					\
+  else								\
+    croak ("required hash key '%s' not specified", #member);
+
+static void
+set_parameters (HV *hv, struct dvb_frontend_parameters *p, fe_type_t type)
+{
+  SV **v;
+
+  HVF_I (hv, (*p), frequency);
+  HVF_I (hv, (*p), inversion);
+
+  switch (type)
+    {
+      case FE_QPSK:
+        HVF_I (hv, (*p).u.qpsk, symbol_rate);
+        HVF_I (hv, (*p).u.qpsk, fec_inner);
+        break;
+
+      case FE_QAM:
+        HVF_I (hv, (*p).u.qam, symbol_rate);
+        HVF_I (hv, (*p).u.qam, fec_inner);
+        HVF_I (hv, (*p).u.qam, modulation);
+        break;
+
+      case FE_OFDM:
+        HVF_I (hv, (*p).u.ofdm, bandwidth);
+        HVF_I (hv, (*p).u.ofdm, code_rate_HP);
+        HVF_I (hv, (*p).u.ofdm, code_rate_LP);
+        HVF_I (hv, (*p).u.ofdm, constellation);
+        HVF_I (hv, (*p).u.ofdm, transmission_mode);
         break;
     }
 }
@@ -327,11 +374,45 @@ decode_field (int bits)
   return dec_field = r;
 }
 
+U32
+clamp (U32 len)
+{
+  return len < 4096
+         && len <= dec_len8 - (dec_ofs >> 3) + 1 /* +1 to detect overflows */
+            ? len : 0;
+}
+
+/* works on SvPOK strings ONLY */
+void
+safe_sv_chop (SV *sv, STRLEN count)
+{
+  if ((U32)count >= (U32)SvCUR (sv))
+    SvCUR_set (sv, 0);
+  else
+    sv_chop (sv, SvPVX (sv) + count);
+}
+
+U32
+bcd_to_int (U32 bcd_number)
+{
+  U32 result = 0;
+  U32 multiplicator = 1;
+
+  while (bcd_number != 0) 
+    {
+      result += (bcd_number & 0x0f) * multiplicator;
+      bcd_number >>= 4;
+      multiplicator *= 10;
+    }
+
+  return result;
+}
+
 static SV *
 text2sv (u8 *data, U32 len)
 {
   dSP;
-  SV *sv = newSVpvn (data, len);
+  SV *sv = newSVpvn (data, clamp (len));
 
   PUSHMARK (SP);
   XPUSHs (sv);
@@ -342,8 +423,8 @@ text2sv (u8 *data, U32 len)
 }
 
 #define DEC_I(hv, bits, name)  HVS (hv, name, newSViv (decode_field (bits)))
-#define DEC_T(hv, bytes, name) HVS (hv, name, text2sv (dec_data + (dec_ofs >> 3), (bytes))), dec_ofs += (bytes) << 3
-#define DEC_S(hv, bytes, name) HVS (hv, name, newSVpvn (dec_data + (dec_ofs >> 3), (bytes))), dec_ofs += (bytes) << 3
+#define DEC_T(hv, bytes, name) HVS (hv, name, text2sv (dec_data + (dec_ofs >> 3), clamp (bytes))), dec_ofs += clamp (bytes) << 3
+#define DEC_S(hv, bytes, name) HVS (hv, name, newSVpvn (dec_data + (dec_ofs >> 3), clamp (bytes))), dec_ofs += clamp (bytes) << 3
 
 static AV *
 decode_descriptors (long end)
@@ -369,6 +450,59 @@ decode_descriptors (long end)
 
       switch (type)
         {
+          case DT_network_name:
+            DEC_T (hv, (end - dec_ofs) >> 3, network_name);
+            break;
+
+	  case DT_service_list:
+            {
+              AV *services = newAV ();
+              HVS (hv, services, newRV_noinc ((SV *)services));
+
+	      while (dec_ofs < end) 
+                {
+                  HV *sv = newHV ();
+                  av_push (services, newRV_noinc ((SV *)sv));
+
+                  DEC_I (sv, 16, service_id);
+                  DEC_I (sv,  8, service_type);
+
+	        }
+            }
+
+	    break;
+
+	  case DT_satellite_delivery_system: 
+	    HVS (hv, frequency, newSVuv (bcd_to_int (decode_field (32))));
+	    HVS (hv, orbital_position, newSVnv (bcd_to_int (decode_field (32)) / 10));
+	    DEC_I (hv,  1, west_east_flag);
+	    DEC_I (hv,  2, polarization);
+	    DEC_I (hv,  5, modulation);
+	    HVS (hv, symbol_rate, newSVuv (bcd_to_int (decode_field (28))));
+	    DEC_I (hv,  4, fec_inner);
+	    break;
+
+	  case DT_cable_delivery_system: 
+	    {
+	      I16 qam_modulation = -1;
+
+	      HVS (hv, frequency, newSVuv (bcd_to_int (decode_field (32))));
+	      decode_field (12); // reserved
+	      DEC_I (hv,  4, fec_outer);
+
+	      DEC_I (hv,  8, modulation);
+
+	      if (dec_field >= 1 && dec_field <= 5) 
+	        qam_modulation = 1 << dec_field + 3;
+
+	      HVS (hv, modulation_qam, newSViv (qam_modulation));
+
+	      HVS (hv, symbol_rate, newSVuv (bcd_to_int (decode_field (28))));
+	      DEC_I (hv,  4, fec_inner);
+
+	      break;
+	    }
+
           case DT_service:
             DEC_I (hv,  8, service_type);
             len2 = decode_field (8); DEC_T (hv, len2, service_provider_name);
@@ -450,15 +584,58 @@ decode_descriptors (long end)
             break;
 
           case DT_content:
-            DEC_S (hv, len, content);
+            av2 = newAV ();
+            HVS (hv, items, newRV_noinc ((SV *)av2));
+ 
+            while (dec_ofs < end)
+              {
+                HV *ev = newHV ();
+ 
+                DEC_I (ev, 4, content_nibble_level_1);
+                DEC_I (ev, 4, content_nibble_level_2);
+                DEC_I (ev, 4, user_nibble_1);
+                DEC_I (ev, 4, user_nibble_2);
+
+                av_push (av2, newRV_noinc ((SV *)ev));
+             }
+
             break;
+
+	  case DT_terrestrial_delivery_system:
+	    {
+	      I8 bandwidth_mhz = -1;
+	    
+	      HVS (hv, centre_frequency, newSVuv (decode_field (32) * 10));
+
+	      DEC_I (hv,  3, bandwidth);
+
+	      if (dec_field <= 3) 
+	        bandwidth_mhz = 8 - dec_field;
+
+	      HVS (hv, bandwidth_mhz, newSViv (bandwidth_mhz));
+
+	      DEC_I (hv,  1, priority);
+	      DEC_I (hv,  1, time_slicing_indicator);
+	      DEC_I (hv,  1, mpe_fec_indicator);
+	      decode_field (2); // reserved
+	      DEC_I (hv,  2, constellation);
+	      DEC_I (hv,  3, hierarchy_information);
+	      DEC_I (hv,  3, code_rate_hp_stream);
+	      DEC_I (hv,  3, code_rate_lp_stream);
+	      DEC_I (hv,  2, guard_interval);
+	      DEC_I (hv,  2, transmission_mode);
+	      DEC_I (hv,  1, other_frequency_use);
+	      decode_field (32);
+	    }
+	    break;
 
           case DT_private_data_specifier:
             DEC_I (hv, 32, private_data_specifier);
             break;
            
           default:
-            fprintf (stderr, "UNKXXX %x\n", type);//D
+            //fprintf (stderr, "UNKXXX %x\n", type);//D
+
           case 0:
           case 0x80:
           case 0x81:
@@ -582,6 +759,23 @@ _uncorrected_blocks (int fd)
 	OUTPUT:
         RETVAL
 
+int
+_set (int fd, SV *parameters, int type)
+	CODE:
+        struct dvb_frontend_parameters p;
+
+        if (!SvROK (parameters) || SvTYPE (SvRV (parameters)) != SVt_PVHV)
+          croak ("Linux::DVB::Frontend::set requires a hash as argument");
+
+        set_parameters ((HV *)SvRV (parameters), &p, type);
+
+        if (ioctl (fd, FE_SET_FRONTEND, &p) < 0)
+	  XSRETURN_UNDEF;
+
+        RETVAL = 1;
+	OUTPUT:
+        RETVAL
+
 SV *
 _get (int fd, int type)
 	CODE:
@@ -592,7 +786,7 @@ _get (int fd, int type)
 	  XSRETURN_UNDEF;
 
         hv = newHV ();
-        set_parameters (hv, &p, type);
+        get_parameters (hv, &p, type);
         RETVAL = (SV *)newRV_noinc ((SV *)hv);
 	OUTPUT:
         RETVAL
@@ -608,7 +802,7 @@ _event (int fd, int type)
 
         hv = newHV ();
         HVS_I (hv, e, status);
-        set_parameters (hv, &e.parameters, type);
+        get_parameters (hv, &e.parameters, type);
         RETVAL = (SV *)newRV_noinc ((SV *)hv);
 	OUTPUT:
         RETVAL
@@ -697,6 +891,7 @@ si (SV *stream)
 	CODE:
         HV *hv = newHV ();
 
+        int syntax_indicator;
         U8 table_id;
         U16 length;
         long end;
@@ -708,107 +903,161 @@ si (SV *stream)
           table_id = dec_field;
         } while (table_id == 0xff);
 
-        DEC_I (hv, 1, section_syntax_indicator);
+        syntax_indicator = decode_field (1);
+        HVS (hv, section_syntax_indicator, newSViv (syntax_indicator));
+
         decode_field (1);
         decode_field (2);
 
         length = decode_field (12);
         end = dec_ofs + (length << 3);
 
-        switch (table_id)
-          {
-            case SCT_EIT_PRESENT:
-            case SCT_EIT_PRESENT_OTHER:
-            case SCT_EIT_SCHEDULE0...SCT_EIT_SCHEDULE15: //GCC
-            case SCT_EIT_SCHEDULE_OTHER0...SCT_EIT_SCHEDULE_OTHER15: //GCC
-              DEC_I (hv, 16, service_id);
-              decode_field (2);
-              DEC_I (hv,  5, version_number);
-              DEC_I (hv,  1, current_next_indicator);
-              DEC_I (hv,  8, section_number);
-              DEC_I (hv,  8, last_section_number);
-              DEC_I (hv, 16, transport_stream_id);
-              DEC_I (hv, 16, original_network_id);
-              DEC_I (hv,  8, segment_last_section_number);
-              DEC_I (hv,  8, last_table_id);
+        if (syntax_indicator)
+	  {
+            switch (table_id)
+              {
+                case SCT_NIT:
+                  {
+                    U16 descriptor_end_offset;
 
-              AV *events = newAV ();
-              HVS (hv, events, newRV_noinc ((SV *)events));
+                    DEC_I (hv, 16, network_id);
+                    decode_field (2); // reserved
+                    DEC_I (hv,  5, version_number);
+                    DEC_I (hv,  1, current_next_indicator);
+                    DEC_I (hv,  8, section_number);
+                    DEC_I (hv,  8, last_section_number);
+                    decode_field (4); // reserved
+                                            
+                    AV *desc;
+                    descriptor_end_offset = dec_ofs + (decode_field (12) << 3);
+                    desc = decode_descriptors (descriptor_end_offset);
+                    HVS (hv,network_descriptors, newRV_noinc ((SV *)desc));
 
-              while (end - dec_ofs > 32)
-                {
-                  long dll;
-                  AV *desc;
-                  HV *ev = newHV ();
-                  av_push (events, newRV_noinc ((SV *)ev));
+                    decode_field (4); //reserved
+                    decode_field (12); // Skip length, we read until the end
 
-                  DEC_I (ev, 16, event_id);
-                  DEC_I (ev, 16, start_time_mjd);
-                  DEC_I (ev, 24, start_time_hms);
-                  DEC_I (ev, 24, duration);
-                  DEC_I (ev,  3, running_status);
-                  DEC_I (ev,  1, free_CA_mode);
+                    AV *events = newAV ();
+                    HVS (hv, events, newRV_noinc ((SV *)events));
+                    while (end - dec_ofs > 32) 
+                      {
+                        long dll;
+                        HV *ev = newHV ();
+                        av_push (events, newRV_noinc ((SV *)ev));
 
-                  dll = dec_ofs + (decode_field (12) << 3);
+                        DEC_I (ev, 16, transport_stream_id);
+                        DEC_I (ev, 16, original_network_id);
+                        decode_field (4);
 
-                  desc = decode_descriptors (dll);
-                  HVS (ev, descriptors, newRV_noinc ((SV *)desc));
-                }
+                        dll = dec_ofs + (decode_field (12) << 3);
+                        desc = decode_descriptors (dll);
+                        HVS (ev, descriptors, newRV_noinc ((SV *)desc));
+                      }
 
-              decode_field (32); // skip CRC
+                    decode_field (32); // skip CRC
+                  }
 
-              break;
+                  break; 
 
-            case SCT_SDT:
-            case SCT_SDT_OTHER:
-              DEC_I (hv, 16, transport_stream_id);
-              decode_field (2);
-              DEC_I (hv,  5, version_number);
-              DEC_I (hv,  1, current_next_indicator);
-              DEC_I (hv,  8, section_number);
-              DEC_I (hv,  8, last_section_number);
-              DEC_I (hv, 16, original_network_id);
-              decode_field (8);
+                case SCT_EIT_PRESENT:
+                case SCT_EIT_PRESENT_OTHER:
+                case SCT_EIT_SCHEDULE0...SCT_EIT_SCHEDULE15: //GCC
+                case SCT_EIT_SCHEDULE_OTHER0...SCT_EIT_SCHEDULE_OTHER15: //GCC
+                  DEC_I (hv, 16, service_id);
+                  decode_field (2);
+                  DEC_I (hv,  5, version_number);
+                  DEC_I (hv,  1, current_next_indicator);
+                  DEC_I (hv,  8, section_number);
+                  DEC_I (hv,  8, last_section_number);
+                  DEC_I (hv, 16, transport_stream_id);
+                  DEC_I (hv, 16, original_network_id);
+                  DEC_I (hv,  8, segment_last_section_number);
+                  DEC_I (hv,  8, last_table_id);
 
-              AV *services = newAV ();
-              HVS (hv, services, newRV_noinc ((SV *)services));
+                  AV *events = newAV ();
+                  HVS (hv, events, newRV_noinc ((SV *)events));
 
-              while (end - dec_ofs > 32)
-                {
-                  HV *ev = newHV ();
-                  U32 dll;
-                  AV *desc;
-                  av_push (services, newRV_noinc ((SV *)ev));
+                  while (end - dec_ofs > 32)
+                    {
+                      long dll;
+                      AV *desc;
+                      HV *ev = newHV ();
+                      av_push (events, newRV_noinc ((SV *)ev));
 
-                  DEC_I (ev, 16, service_id);
-                  decode_field (6);
-                  DEC_I (ev, 1, EIT_schedule_flags);
-                  DEC_I (ev, 1, EIT_present_following_flag);
-                  DEC_I (ev, 3, running_status);
-                  DEC_I (ev, 1, free_CA_mode);
+                      DEC_I (ev, 16, event_id);
+                      DEC_I (ev, 16, start_time_mjd);
+                      DEC_I (ev, 24, start_time_hms);
+                      DEC_I (ev, 24, duration);
+                      DEC_I (ev,  3, running_status);
+                      DEC_I (ev,  1, free_CA_mode);
 
-                  dll = dec_ofs + (decode_field (12) << 3);
-                  
-                  desc = decode_descriptors (dll);
-                  HVS (ev, descriptors, newRV_noinc ((SV *)desc));
-                }
+                      dll = dec_ofs + (decode_field (12) << 3);
 
-              decode_field (32); // skip CRC
-              break;
+                      desc = decode_descriptors (dll);
+                      HVS (ev, descriptors, newRV_noinc ((SV *)desc));
+                    }
 
-            default:
-              DEC_S (hv, length, raw_data);
-              break;
+                  decode_field (32); // skip CRC
+
+                  break;
+
+                case SCT_SDT:
+                case SCT_SDT_OTHER:
+                  DEC_I (hv, 16, transport_stream_id);
+                  decode_field (2);
+                  DEC_I (hv,  5, version_number);
+                  DEC_I (hv,  1, current_next_indicator);
+                  DEC_I (hv,  8, section_number);
+                  DEC_I (hv,  8, last_section_number);
+                  DEC_I (hv, 16, original_network_id);
+                  decode_field (8);
+
+                  AV *services = newAV ();
+                  HVS (hv, services, newRV_noinc ((SV *)services));
+
+                  while (end - dec_ofs > 32)
+                    {
+                      HV *ev = newHV ();
+                      U32 dll;
+                      AV *desc;
+                      av_push (services, newRV_noinc ((SV *)ev));
+
+                      DEC_I (ev, 16, service_id);
+                      decode_field (6);
+                      DEC_I (ev, 1, EIT_schedule_flags);
+                      DEC_I (ev, 1, EIT_present_following_flag);
+                      DEC_I (ev, 3, running_status);
+                      DEC_I (ev, 1, free_CA_mode);
+
+                      dll = dec_ofs + (decode_field (12) << 3);
+                      
+                      desc = decode_descriptors (dll);
+                      HVS (ev, descriptors, newRV_noinc ((SV *)desc));
+                    }
+
+                  decode_field (32); // skip CRC
+                  break;
+
+                default:
+                  DEC_S (hv, length, raw_data);
+                  break;
+              }
+
+            if (decode_overflow)
+              {
+                SvREFCNT_dec (hv);
+                safe_sv_chop (stream, (end + 7) >> 3);
+                XSRETURN_UNDEF;
+              }
+
+            safe_sv_chop (stream, (dec_ofs + 7) >> 3);
           }
-
-        if (decode_overflow)
+	else
           {
             SvREFCNT_dec (hv);
+            safe_sv_chop (stream, (end + 7) >> 3);
             XSRETURN_UNDEF;
           }
 
-        sv_chop (stream, SvPVX (stream) + ((dec_ofs + 7) >> 3));
-        
         RETVAL = (SV *)newRV_noinc ((SV *)hv);
 	OUTPUT:
         RETVAL

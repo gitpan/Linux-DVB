@@ -1,5 +1,14 @@
 Revision history for Perl extension Linux::DVB
 
+0.3  Mon Apr 11 23:13:42 CEST 2005
+        - implemented $frontend->set and updated eg/extract-si.
+        - patch by Magnus Schmidt that adds more descriptor decodings.
+        - updated dvbapi document url.
+        - slightly improved documentation.
+        - make decode_si more resistent against protocol errors, by
+          dropping sections with syntax_indicator=0, more robustly skip
+          illegal frames.
+
 0.2   Thu Mar  3 21:10:52 CET 2005
 	- fix version mismatch.
 
