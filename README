@@ -18,9 +18,9 @@ DESCRIPTION
     translated into flat perl hashes, i.e "struct.u.qam.symbol_rate" becomes
     "$struct->{symbol_rate}".
 
-    Noteworthy limitations of this module include: no way to set the
-    frequency or diseqc. No interface to the video, audio and net devices.
-    If you need this functionality bug the author.
+    Noteworthy limitations of this module include: No interface to the
+    video, audio and net devices. If you need this functionality bug the
+    author.
 
 Linux::DVB::Frontend CLASS
   SYNOPSIS
@@ -64,7 +64,6 @@ Linux::DVB::Frontend CLASS
         QAM frontends:
 
           symbol_rate       =>
-          fec_inner         =>
           modulation        =>
 
         QFDM frontends:
@@ -82,14 +81,37 @@ Linux::DVB::Frontend CLASS
         Example:
 
           Data::Dumper::Dumper $fe->get
-  
-          {
+          
+  {
             frequency   => 426000000, # 426 Mhz
             inversion   => 0,         # INVERSION_OFF
             symbol_rate => 6900000,   # 6.9 MB/s
-            fec_inner   => 0,         # FEC_NONE
             modulation  => 3,         # QAM_64
           }
+
+    $ok = $fe->diseqc_reset_overload
+        If the bus has been automatically powered off due to power overload,
+        this call restores the power to the bus. The call requires
+        read/write access to the device. This call has no effect if the
+        device is manually powered off. Not all DVB adapters support this
+        call.
+
+    $ok = $fe->diseqc_voltage (13|18)
+        Set the DiSEqC voltage to either 13 or 18 volts.
+
+    $ok = $fe->diseqc_tone (1|0)
+        Enables (1) or disables (0) the DiSEqC continuous 22khz tone
+        generation.
+
+    $ok = $fe->diseqc_send_burst (0|1)
+        Sends a 22KHz tone burst of type SEC_MINI_A (0) or SEC_MINI_B (1).
+
+    $ok = $fe->diseqc_cmd ($command)
+        Sends a DiSEqC command ($command is 3 to 6 bytes of binary data).
+
+    $reply = $fe->diseqc_reply ($timeout)
+        Receives a reply to a DiSEqC 2.0 command and returns it as a binary
+        octet string 0..4 bytes in length (or "undef" in the error case).
 
 Linux::DVB::Demux CLASS
   SYNOPSIS
@@ -104,7 +126,7 @@ Linux::DVB::Demux CLASS
      $dmx->sct_filter ($pid, "filter", "mask", $timeout=0, $flags=DMX_CHECK_CRC);
      $dmx->pes_filter ($pid, $input, $output, $type, $flags=0);
      $dmx->start; 
-     $dmx->stop; 
+     $dmx->stop;
 
 Linux::DVB::Decode CLASS
   SYNOPSIS
@@ -200,11 +222,27 @@ Linux::DVB::Decode CLASS
            $Linux::DVB::Decode::nibble_to_genre{7}{6}
            => 'film/cinema'
 
-    ($sec,$min,$hour,$mday,$mon,$year) = Linux::DVB::Decode::time $mjd,
-    $time
+    ($sec,$min,$hour) = Linux::DVB::Decode::time $hms
+    ($mday,$mon,$year) = Linux::DVB::Decode::date $mjd
+    ($sec,$min,$hour,$mday,$mon,$year) = Linux::DVB::Decode::datetime $mjd,
+    $hms
+    $sec = Linux::DVB::Decode::time_linear $hms
+    $sec = Linux::DVB::Decode::datetime_linear $mjd, $hms
         Break down a "DVB time" (modified julian date + bcd encoded seconds)
-        into it's components in UTC (i.e. use Time::Local::timegm to convert
-        to UNIX time).
+        into it's components (non-"_linear") or into a seconds count
+        ("_linear" variants) since the epoch ("datetime_linear") or the
+        start of the day ("time_linear").
+
+        The format of the returns value of the date and datetime functions
+        is *not* compatible with "Time::Local". Use the "_linear" functions
+        instead.
+
+        Example:
+
+           my $time = Linux::DVB::Decode::datetime_linear $mjd, $hms
+           printf "Starts at %s\n",
+              POSIX::strftime "%Y-%m-%d %H:%M:%S",
+                 localtime $time;
 
 AUTHORS
      Marc Lehmann <schmorp@schmorp.de>, http://home.schmorp.de/

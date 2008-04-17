@@ -9,6 +9,8 @@
 
 #define CONST(name) { #name, name }
 
+typedef int FE_fd;
+
 enum {
   SCT_PAT                  = 0x00,
   SCT_CAT                  = 0x01,
@@ -182,8 +184,8 @@ static const struct consts {
   CONST (DMX_PES_SUBTITLE),
   CONST (DMX_PES_PCR),
 
-  CONST (DMX_SCRAMBLING_EV),
-  CONST (DMX_FRONTEND_EV),
+  //CONST (DMX_SCRAMBLING_EV),
+  //CONST (DMX_FRONTEND_EV),
 
   CONST (DMX_CHECK_CRC),
   CONST (DMX_ONESHOT),
@@ -200,8 +202,8 @@ static const struct consts {
   CONST (DMX_SOURCE_DVR2),
   CONST (DMX_SOURCE_DVR3),
 
-  CONST (DMX_SCRAMBLING_OFF),
-  CONST (DMX_SCRAMBLING_ON),
+  //CONST (DMX_SCRAMBLING_OFF),
+  //CONST (DMX_SCRAMBLING_ON),
 
   // constants defined by this file
   CONST (SCT_PAT),
@@ -336,7 +338,7 @@ decode_set (SV *data)
     SvREFCNT_dec (dec_sv);
 
   dec_sv   = newSVsv (data);
-  dec_data = SvPVbyte (dec_sv, dec_len);
+  dec_data = (u8 *)SvPVbyte (dec_sv, dec_len);
   dec_ofs  = 0;
   dec_len8 = dec_len << 3;
 }
@@ -412,7 +414,7 @@ static SV *
 text2sv (u8 *data, U32 len)
 {
   dSP;
-  SV *sv = newSVpvn (data, clamp (len));
+  SV *sv = newSVpvn ((char *)data, clamp (len));
 
   PUSHMARK (SP);
   XPUSHs (sv);
@@ -424,7 +426,7 @@ text2sv (u8 *data, U32 len)
 
 #define DEC_I(hv, bits, name)  HVS (hv, name, newSViv (decode_field (bits)))
 #define DEC_T(hv, bytes, name) HVS (hv, name, text2sv (dec_data + (dec_ofs >> 3), clamp (bytes))), dec_ofs += clamp (bytes) << 3
-#define DEC_S(hv, bytes, name) HVS (hv, name, newSVpvn (dec_data + (dec_ofs >> 3), clamp (bytes))), dec_ofs += clamp (bytes) << 3
+#define DEC_S(hv, bytes, name) HVS (hv, name, newSVpvn ((char *)dec_data + (dec_ofs >> 3), clamp (bytes))), dec_ofs += clamp (bytes) << 3
 
 static AV *
 decode_descriptors (long end)
@@ -675,7 +677,7 @@ _consts ()
 MODULE = Linux::DVB		PACKAGE = Linux::DVB::Frontend
 
 SV *
-_frontend_info (int fd)
+frontend_info (FE_fd fd)
 	CODE:
         struct dvb_frontend_info fi;
         HV *hv;
@@ -702,7 +704,7 @@ _frontend_info (int fd)
         RETVAL
 
 long
-_read_status (int fd)
+read_status (FE_fd fd)
 	CODE:
         fe_status_t st;
 
@@ -714,7 +716,7 @@ _read_status (int fd)
         RETVAL
 
 U32
-_read_ber (int fd)
+read_ber (FE_fd fd)
 	CODE:
         uint32_t ber;
         if (ioctl (fd, FE_READ_BER, &ber) < 0)
@@ -725,7 +727,7 @@ _read_ber (int fd)
         RETVAL
 
 U32
-_read_snr (int fd)
+read_snr (FE_fd fd)
 	CODE:
         uint32_t ber;
         if (ioctl (fd, FE_READ_SNR, &ber) < 0)
@@ -737,7 +739,7 @@ _read_snr (int fd)
 
 
 I16
-_signal_strength (int fd)
+signal_strength (FE_fd fd)
 	CODE:
         int16_t st;
         if (ioctl (fd, FE_READ_SIGNAL_STRENGTH, &st) < 0)
@@ -749,7 +751,7 @@ _signal_strength (int fd)
 
 
 U32
-_uncorrected_blocks (int fd)
+uncorrected_blocks (FE_fd fd)
 	CODE:
         uint32_t ubl;
         if (ioctl (fd, FE_READ_UNCORRECTED_BLOCKS, &ubl) < 0)
@@ -804,6 +806,66 @@ _event (int fd, int type)
         HVS_I (hv, e, status);
         get_parameters (hv, &e.parameters, type);
         RETVAL = (SV *)newRV_noinc ((SV *)hv);
+	OUTPUT:
+        RETVAL
+
+int
+diseqc_reset_overload (FE_fd fd)
+	CODE:
+        RETVAL = !!ioctl (fd, FE_DISEQC_RESET_OVERLOAD);
+	OUTPUT:
+        RETVAL
+
+int
+diseqc_voltage (FE_fd fd, int volts)
+	CODE:
+        RETVAL = !!ioctl (fd, FE_SET_VOLTAGE, volts == 18
+          ? SEC_VOLTAGE_18
+          : SEC_VOLTAGE_13);
+	OUTPUT:
+        RETVAL
+
+int
+diseqc_tone (FE_fd fd, int on)
+	CODE:
+        RETVAL = !!ioctl (fd, FE_SET_TONE, on ? SEC_TONE_ON : SEC_TONE_OFF);
+	OUTPUT:
+        RETVAL
+
+int
+diseqc_send_burst (FE_fd fd, int type)
+	CODE:
+        RETVAL = !!ioctl (fd, FE_DISEQC_SEND_BURST, type ? SEC_MINI_B : SEC_MINI_A);
+	OUTPUT:
+        RETVAL
+
+int
+diseqc_cmd (FE_fd fd, SV *command_)
+	CODE:
+{
+	STRLEN len;
+	char *command = SvPVbyte (command_, len);
+	struct dvb_diseqc_master_cmd cmd;
+
+        memcpy (cmd.msg, command_, len);
+        cmd.msg_len = len;
+        RETVAL = !!ioctl (fd, FE_DISEQC_SEND_MASTER_CMD, &cmd);
+}
+	OUTPUT:
+        RETVAL
+
+SV *
+diseqc_reply (FE_fd fd, int timeout_ms)
+	CODE:
+{
+	struct dvb_diseqc_slave_reply rep;
+        rep.timeout = timeout_ms;
+
+        if (!!ioctl (fd, FE_DISEQC_RECV_SLAVE_REPLY, &rep))
+          RETVAL = newSVpvn ((char *)rep.msg, rep.msg_len);
+        else
+          RETVAL = &PL_sv_undef;
+}
 	OUTPUT:
         RETVAL
 
@@ -873,21 +935,21 @@ _buffer (int fd, unsigned long size)
 MODULE = Linux::DVB		PACKAGE = Linux::DVB::Decode	PREFIX = decode_
 
 void
-set (SV *data)
+decode_set (SV *data)
 	CODE:
 
 int
-len ()
+decode_len ()
 	CODE:
         RETVAL = (dec_ofs + 7) >> 3;
 	OUTPUT:
 	RETVAL
 
 U32
-field (int bits)
+decode_field (int bits)
 
 SV *
-si (SV *stream)
+decode_si (SV *stream)
 	CODE:
         HV *hv = newHV ();
 
@@ -917,6 +979,7 @@ si (SV *stream)
             switch (table_id)
               {
                 case SCT_NIT:
+                case SCT_NIT_OTHER:
                   {
                     U16 descriptor_end_offset;
 
@@ -962,41 +1025,43 @@ si (SV *stream)
                 case SCT_EIT_PRESENT_OTHER:
                 case SCT_EIT_SCHEDULE0...SCT_EIT_SCHEDULE15: //GCC
                 case SCT_EIT_SCHEDULE_OTHER0...SCT_EIT_SCHEDULE_OTHER15: //GCC
-                  DEC_I (hv, 16, service_id);
-                  decode_field (2);
-                  DEC_I (hv,  5, version_number);
-                  DEC_I (hv,  1, current_next_indicator);
-                  DEC_I (hv,  8, section_number);
-                  DEC_I (hv,  8, last_section_number);
-                  DEC_I (hv, 16, transport_stream_id);
-                  DEC_I (hv, 16, original_network_id);
-                  DEC_I (hv,  8, segment_last_section_number);
-                  DEC_I (hv,  8, last_table_id);
+                  {
+                    DEC_I (hv, 16, service_id);
+                    decode_field (2);
+                    DEC_I (hv,  5, version_number);
+                    DEC_I (hv,  1, current_next_indicator);
+                    DEC_I (hv,  8, section_number);
+                    DEC_I (hv,  8, last_section_number);
+                    DEC_I (hv, 16, transport_stream_id);
+                    DEC_I (hv, 16, original_network_id);
+                    DEC_I (hv,  8, segment_last_section_number);
+                    DEC_I (hv,  8, last_table_id);
 
-                  AV *events = newAV ();
-                  HVS (hv, events, newRV_noinc ((SV *)events));
+                    AV *events = newAV ();
+                    HVS (hv, events, newRV_noinc ((SV *)events));
 
-                  while (end - dec_ofs > 32)
-                    {
-                      long dll;
-                      AV *desc;
-                      HV *ev = newHV ();
-                      av_push (events, newRV_noinc ((SV *)ev));
+                    while (end - dec_ofs > 32)
+                      {
+                        long dll;
+                        AV *desc;
+                        HV *ev = newHV ();
+                        av_push (events, newRV_noinc ((SV *)ev));
 
-                      DEC_I (ev, 16, event_id);
-                      DEC_I (ev, 16, start_time_mjd);
-                      DEC_I (ev, 24, start_time_hms);
-                      DEC_I (ev, 24, duration);
-                      DEC_I (ev,  3, running_status);
-                      DEC_I (ev,  1, free_CA_mode);
+                        DEC_I (ev, 16, event_id);
+                        DEC_I (ev, 16, start_time_mjd);
+                        DEC_I (ev, 24, start_time_hms);
+                        DEC_I (ev, 24, duration);
+                        DEC_I (ev,  3, running_status);
+                        DEC_I (ev,  1, free_CA_mode);
 
-                      dll = dec_ofs + (decode_field (12) << 3);
+                        dll = dec_ofs + (decode_field (12) << 3);
 
-                      desc = decode_descriptors (dll);
-                      HVS (ev, descriptors, newRV_noinc ((SV *)desc));
-                    }
+                        desc = decode_descriptors (dll);
+                        HVS (ev, descriptors, newRV_noinc ((SV *)desc));
+                      }
 
-                  decode_field (32); // skip CRC
+                    decode_field (32); // skip CRC
+                  }
 
                   break;
 

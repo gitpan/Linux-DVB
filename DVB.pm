@@ -21,9 +21,8 @@ Noteworthy differences to the C API: unions and sub-structs are usually
 translated into flat perl hashes, i.e C<struct.u.qam.symbol_rate>
 becomes C<< $struct->{symbol_rate} >>.
 
-Noteworthy limitations of this module include: no way to set the
-frequency or diseqc. No interface to the video, audio and net devices.
-If you need this functionality bug the author.
+Noteworthy limitations of this module include: No interface to the video,
+audio and net devices. If you need this functionality bug the author.
 
 =cut
 
@@ -32,7 +31,7 @@ package Linux::DVB;
 use Fcntl ();
 
 BEGIN {
-   $VERSION = '0.3';
+   $VERSION = '1.0';
    @ISA = qw(Exporter);
 
    require XSLoader;
@@ -108,13 +107,6 @@ sub new {
    $self;
 }
 
-sub frontend_info   { _frontend_info   ($_[0]{fd}) }
-sub status          { _read_status     ($_[0]{fd}) }
-sub ber             { _read_ber        ($_[0]{fd}) }
-sub snr             { _snr             ($_[0]{fd}) }
-sub signal_strength { _signal_strength ($_[0]{fd}) }
-sub uncorrected     { _uncorrected     ($_[0]{fd}) }
-
 =item $fe->set (parameter => value, ...)
 
 Sets frontend parameters. All values are stuffed into the
@@ -136,7 +128,6 @@ QPSK frontends:
 QAM frontends:
 
   symbol_rate       =>
-  fec_inner         =>
   modulation        =>
 
 QFDM frontends:
@@ -167,7 +158,6 @@ Example:
     frequency   => 426000000, # 426 Mhz
     inversion   => 0,         # INVERSION_OFF
     symbol_rate => 6900000,   # 6.9 MB/s
-    fec_inner   => 0,         # FEC_NONE
     modulation  => 3,         # QAM_64
   }
 
@@ -176,6 +166,36 @@ Example:
 sub parameters      { _get   ($_[0]{fd}, $_[0]{type}) }
 sub get             { _get   ($_[0]{fd}, $_[0]{type}) } # unannounced alias
 sub event           { _event ($_[0]{fd}, $_[0]{type}) }
+
+=item $ok = $fe->diseqc_reset_overload
+
+If the bus has been automatically powered off due to power overload, this
+call restores the power to the bus. The call requires read/write access
+to the device. This call has no effect if the device is manually powered
+off. Not all DVB adapters support this call.
+
+=item $ok = $fe->diseqc_voltage (13|18)
+
+Set the DiSEqC voltage to either 13 or 18 volts.
+
+=item $ok = $fe->diseqc_tone (1|0)
+
+Enables (1) or disables (0) the DiSEqC continuous 22khz tone generation.
+
+=item $ok = $fe->diseqc_send_burst (0|1)
+
+Sends a 22KHz tone burst of type SEC_MINI_A (0) or SEC_MINI_B (1).
+
+=item $ok = $fe->diseqc_cmd ($command)
+
+Sends a DiSEqC command ($command is 3 to 6 bytes of binary data).
+
+=item $reply = $fe->diseqc_reply ($timeout)
+
+Receives a reply to a DiSEqC 2.0 command and returns it as a binary octet
+string 0..4 bytes in length (or C<undef> in the error case).
+
+=cut
 
 package Linux::DVB::Demux;
 
@@ -348,7 +368,7 @@ A two-level hash mapping genre nibbles to genres, e.g.
 
 our %nibble_to_genre = (
      0x1 => {
-              0x0 => 'Movie / Drama',
+              0x0 => 'Movie/Drama (general)',
               0x1 => 'Movie - detective/thriller',
               0x2 => 'Movie - adventure/western/war',
               0x3 => 'Movie - science fiction/fantasy/horror',
@@ -359,20 +379,20 @@ our %nibble_to_genre = (
               0x8 => 'Movie - adult movie/drama',
             },
      0x2 => {
-              0x0 => 'News / Current Affairs',
+              0x0 => 'News/Current Affairs (general)',
               0x1 => 'news/weather report',
               0x2 => 'news magazine',
               0x3 => 'documentary',
               0x4 => 'discussion/interview/debate',
             },
      0x3 => {
-              0x0 => 'Show / Game Show',
+              0x0 => 'Show/Game Show (general)',
               0x1 => 'game show/quiz/contest',
               0x2 => 'variety show',
               0x3 => 'talk show',
             },
      0x4 => {
-              0x0 => 'Sports',
+              0x0 => 'Sports (general)',
               0x1 => 'special events (Olympic Games, World Cup etc.)',
               0x2 => 'sports magazines',
               0x3 => 'football/soccer',
@@ -386,7 +406,7 @@ our %nibble_to_genre = (
               0xB => 'martial sports',
             },
      0x5 => {
-              0x0 => 'Childrens / Youth',
+              0x0 => 'Childrens/Youth (general)',
               0x1 => "pre-school children's programmes",
               0x2 => 'entertainment programmes for 6 to 14',
               0x3 => 'entertainment programmes for 10 to 16',
@@ -394,16 +414,16 @@ our %nibble_to_genre = (
               0x5 => 'cartoons/puppets',
             },
      0x6 => {
-              0x0 => 'Music / Ballet / Dance',
+              0x0 => 'Music/Ballet/Dance (general)',
               0x1 => 'rock/pop',
-              0x2 => 'serious music/classical music',
+              0x2 => 'serious music or classical music',
               0x3 => 'folk/traditional music',
               0x4 => 'jazz',
               0x5 => 'musical/opera',
               0x6 => 'ballet',
             },
      0x7 => {
-              0x0 => 'Arts / Culture',
+              0x0 => 'Arts/Culture (without music, general)',
               0x1 => 'performing arts',
               0x2 => 'fine arts',
               0x3 => 'religion',
@@ -417,13 +437,13 @@ our %nibble_to_genre = (
               0xB => 'fashion',
             },
      0x8 => {
-              0x0 => 'Social / Policical / Economics',
+              0x0 => 'Social/Policical/Economics (general)',
               0x1 => 'magazines/reports/documentary',
               0x2 => 'economics/social advisory',
               0x3 => 'remarkable people',
             },
      0x9 => {
-              0x0 => 'Education / Science / Factual',
+              0x0 => 'Education/Science/Factual (general)',
               0x1 => 'nature/animals/environment',
               0x2 => 'technology/natural sciences',
               0x3 => 'medicine/physiology/psychology',
@@ -433,7 +453,7 @@ our %nibble_to_genre = (
               0x7 => 'languages',
             },
      0xA => {
-              0x0 => 'Leisure / Hobbies',
+              0x0 => 'Leisure/Hobbies (general)',
               0x1 => 'tourism/travel',
               0x2 => 'handicraft',
               0x3 => 'motoring',
@@ -443,39 +463,83 @@ our %nibble_to_genre = (
               0x7 => 'gardening',
             },
      0xB => {
-              0x0 => 'Original Language',
-              0x1 => 'black & white',
-              0x2 => 'unpublished',
-              0x3 => 'live broadcast',
+              0x0 => '(original language)',
+              0x1 => '(black & white)',
+              0x2 => '(unpublished)',
+              0x3 => '(live broadcast)',
             },
 );
 
-=item ($sec,$min,$hour,$mday,$mon,$year) = Linux::DVB::Decode::time $mjd, $time
+=item ($sec,$min,$hour) = Linux::DVB::Decode::time $hms
+
+=item ($mday,$mon,$year) = Linux::DVB::Decode::date $mjd
+
+=item ($sec,$min,$hour,$mday,$mon,$year) = Linux::DVB::Decode::datetime $mjd, $hms
+
+=item $sec = Linux::DVB::Decode::time_linear $hms
+
+=item $sec = Linux::DVB::Decode::datetime_linear $mjd, $hms
 
 Break down a "DVB time" (modified julian date + bcd encoded seconds) into
-it's components in UTC (i.e. use Time::Local::timegm to convert to UNIX
-time).
+it's components (non-C<_linear>) or into a seconds count (C<_linear>
+variants) since the epoch (C<datetime_linear>) or the start of the day
+(C<time_linear>).
+
+The format of the returns value of the date and datetime functions is
+I<not> compatible with C<Time::Local>. Use the C<_linear> functions
+instead.
+
+Example:
+
+   my $time = Linux::DVB::Decode::datetime_linear $mjd, $hms
+   printf "Starts at %s\n",
+      POSIX::strftime "%Y-%m-%d %H:%M:%S",
+         localtime $time;
 
 =cut
 
-sub time($$) {
-   my ($mjd, $time) = @_;
-
-   # Date is given in Modified Julian Date
-   # Decoding routines taken from ANNEX C, ETSI EN 300 468 (DVB SI)
-   my $y_ = int ($mjd - 15078.2) / 365.25;
-   my $m_ = int (($mjd - 14956.1 - int ($y_ * 365.25)) / 30.6001);
-   my $day = $mjd - 14956 - int ($y_ * 365.25) - int ($m_ * 30.6001);
-   my $k = $m_ == 14 or $m_ == 15 ? 1 : 0;
-   my $year = $y_ + $k + 1900;
-   my $month = $m_ - 1 - $k * 12;
+sub time($) {
+   my ($time) = @_;
 
    # Time is in UTC, 24 bit, every nibble one digit in BCD from right to left
    my $hour   = sprintf "%02x", ($time >> 16) & 0xFF;
    my $minute = sprintf "%02x", ($time >>  8) & 0xFF;
    my $second = sprintf "%02x", ($time      ) & 0xFF;
 
-   return ($second, $minute, $hour, $day, $month, $year);
+   ($second, $minute, $hour)
+}
+
+sub date($) {
+   my ($mjd) = @_;
+
+   # Date is given in Modified Julian Date
+   # Decoding routines taken from ANNEX C, ETSI EN 300 468 (DVB SI)
+   my $y_ = int (($mjd - 15078.2) / 365.25);
+   my $m_ = int (($mjd - 14956.1 - int ($y_ * 365.25)) / 30.6001);
+   my $day = $mjd - 14956 - int ($y_ * 365.25) - int ($m_ * 30.6001);
+   my $k = $m_ == 14 or $m_ == 15 ? 1 : 0;
+   my $year = $y_ + $k + 1900;
+   my $month = $m_ - 1 - $k * 12;
+
+   ($day, $month, $year)
+}
+
+sub datetime($$) {
+   (Linux::DVB::Decode::time $_[1], date $_[0])
+}
+
+sub time_linear($) {
+   my ($s, $m, $h) = Linux::DVB::Decode::time $_[0];
+
+   (($h * 60) + $m * 60) + $s
+}
+
+sub datetime_linear($$) {
+   my ($sec, $min, $hour, $mday, $mon, $year) =
+      Linux::DVB::Decode::datetime $_[0], $_[1];
+
+   require Time::Local;
+   Time::Local::timegm ($sec, $min, $hour, $mday, $mon - 1, $year)
 }
 
 =back

@@ -1,5 +1,14 @@
 Revision history for Perl extension Linux::DVB
 
+1.0  Thu Apr 17 06:46:11 CEST 2008
+        - applied patches and ideas by Mark Buechler to make it compile
+          again with current kernels.
+	- remove fec_inner from QAM.
+        - add support for diseqc ioctls.
+
+0.4  Tue Apr 12 03:02:24 CEST 2005
+	- incompatibly changed (fixed, improved) datetime decoding functions.
+
 0.3  Mon Apr 11 23:13:42 CEST 2005
         - implemented $frontend->set and updated eg/extract-si.
         - patch by Magnus Schmidt that adds more descriptor decodings.
