@@ -847,7 +847,7 @@ diseqc_cmd (FE_fd fd, SV *command_)
 	char *command = SvPVbyte (command_, len);
 	struct dvb_diseqc_master_cmd cmd;
 
-        memcpy (cmd.msg, command_, len);
+        memcpy (cmd.msg, command, len);
         cmd.msg_len = len;
         RETVAL = !!ioctl (fd, FE_DISEQC_SEND_MASTER_CMD, &cmd);
 }

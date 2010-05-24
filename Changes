@@ -1,5 +1,8 @@
 Revision history for Perl extension Linux::DVB
 
+1.01 Mon May 24 03:52:33 CEST 2010
+	- diseqc_cmd was broken (patch by Damjan Marion).
+
 1.0  Thu Apr 17 06:46:11 CEST 2008
         - applied patches and ideas by Mark Buechler to make it compile
           again with current kernels.

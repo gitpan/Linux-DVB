@@ -81,8 +81,8 @@ Linux::DVB::Frontend CLASS
         Example:
 
           Data::Dumper::Dumper $fe->get
-          
-  {
+  
+          {
             frequency   => 426000000, # 426 Mhz
             inversion   => 0,         # INVERSION_OFF
             symbol_rate => 6900000,   # 6.9 MB/s
